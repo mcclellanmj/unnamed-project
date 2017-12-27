@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["Matt McClellan <mcclellan.mj@gmail.com>"]
 
 [dependencies]
+ggez = {version = "0.3.3", features = ["cargo-resource-root"]}
+nalgebra = "0.13.0"
+sdl2 = "0.27.3"
+
