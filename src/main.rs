@@ -1,6 +1,10 @@
 extern crate ggez;
 extern crate nalgebra;
 
+mod actors;
+
+use actors::Actor;
+
 use ggez::audio;
 use ggez::conf;
 use ggez::event::*;
@@ -21,10 +25,16 @@ use std::time::Duration;
 /// **********************************************************************
 use nalgebra as na;
 
+struct Resources {
+    bullet: graphics::Image
+}
+
 struct MainState {
     player: Player,
     screen_width: u32,
     screen_height: u32,
+    actors: Vec<actors::Projectile>,
+    resources: Resources,
     active_keys: HashSet<Keycode>,
 }
 
@@ -34,11 +44,18 @@ enum Target {
     Angle(f32)
 }
 
+
 struct Player {
     position: na::Vector2<f64>,
     angle: na::Rotation2<f64>,
     target: Target,
     image: graphics::Image,
+    firing: FireState
+}
+
+enum FireState {
+    NotFiring,
+    Firing(f64)
 }
 
 fn create_player(ctx: &mut Context) -> Player {
@@ -46,10 +63,16 @@ fn create_player(ctx: &mut Context) -> Player {
         position: na::Vector2::new(20.0, 20.0),
         angle: na::Rotation2::new(270.0_f64.to_radians()),
         target: Target::Angle(90.0_f32.to_radians()),
-        image: graphics::Image::new(ctx, "/placeholder-character.png").unwrap()
+        image: graphics::Image::new(ctx, "/placeholder-character.png").unwrap(),
+        firing: FireState::NotFiring
     }
 }
 
+fn load_resources(ctx: &mut Context) -> Resources {
+    Resources {
+        bullet: graphics::Image::new(ctx, "/placeholder-bullet.png").unwrap()
+    }
+}
 impl MainState {
     fn new(ctx: &mut Context) -> GameResult<MainState> {
         ctx.print_resource_stats();
@@ -59,6 +82,8 @@ impl MainState {
 
         let s = MainState {
             player: create_player(ctx),
+            resources: load_resources(ctx),
+            actors: Vec::new(),
             active_keys: HashSet::new(),
             screen_width: ctx.conf.window_width,
             screen_height: ctx.conf.window_height,
@@ -123,6 +148,27 @@ impl EventHandler for MainState {
 
         self.player.angle = na::Rotation2::new(self.player.angle.angle() + change);
 
+        for actor in &mut self.actors {
+            actor.update(nanos);
+        }
+
+        match self.player.firing {
+            FireState::NotFiring => {},
+            FireState::Firing(next_fire) => {
+                let updated = next_fire - nanos;
+                if updated < 0.0 {
+                    let velocity = self.player.angle * na::Vector2::new(0.0, -400.0);
+                    let new_bullet = actors::Projectile::new(self.player.position, velocity);
+
+                    self.actors.push(new_bullet);
+
+                    self.player.firing = FireState::Firing((1.0 / 200.0) + updated);
+                } else {
+                    self.player.firing = FireState::Firing(updated);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -142,6 +188,14 @@ impl EventHandler for MainState {
         self.player.target = Target::Mouse(x, y);
     }
 
+    fn mouse_button_down_event(&mut self, _button: MouseButton, _x: i32, _y: i32) {
+        self.player.firing = FireState::Firing(0.0);
+    }
+
+    fn mouse_button_up_event(&mut self, _button: MouseButton, _x: i32, _y: i32) {
+        self.player.firing = FireState::NotFiring;
+    }
+
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx);
 
@@ -152,6 +206,13 @@ impl EventHandler for MainState {
         graphics::set_color(ctx, graphics::Color::new(1.0, 1.0, 1.0, 1.0))?;
         graphics::draw(ctx, &self.player.image, player_point, self.player.angle.angle() as f32)?;
         graphics::rectangle(ctx, graphics::DrawMode::Fill, rect);
+
+        for actor in &self.actors {
+            let bullet_point = graphics::Point::new(actor.position[0] as f32, actor.position[1] as f32);
+            let rotation = (actor.velocity[1] / actor.velocity[0]).atan() + std::f64::consts::PI / 2_f64;
+            graphics::draw(ctx, &self.resources.bullet, bullet_point, rotation as f32)?;
+        }
+
         graphics::present(ctx);
 
         Ok(())
