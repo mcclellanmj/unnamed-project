@@ -7,4 +7,4 @@ authors = ["Matt McClellan <mcclellan.mj@gmail.com>"]
 ggez = {version = "0.3.3", features = ["cargo-resource-root"]}
 nalgebra = "0.13.0"
 sdl2 = "0.27.3"
-
+specs = "0.10.0"

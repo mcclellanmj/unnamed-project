@@ -1,22 +1,24 @@
 extern crate ggez;
 extern crate nalgebra;
+extern crate specs;
 
 mod actors;
+mod ecs;
 
 use actors::Actor;
 
-use ggez::audio;
+// use ggez::audio;
 use ggez::conf;
 use ggez::event::*;
 use ggez::{Context, GameResult};
 use ggez::graphics;
-use ggez::timer;
+// use ggez::timer;
 use ggez::event::Keycode;
 
-use std::env;
-use std::path;
 use std::collections::HashSet;
 use std::time::Duration;
+
+use specs::{Component, VecStorage, World, Dispatcher};
 
 /// *********************************************************************
 /// Basic stuff, make some helpers for vector functions.
@@ -25,10 +27,33 @@ use std::time::Duration;
 /// **********************************************************************
 use nalgebra as na;
 
+// Begin Components
+struct Position {
+    position: na::Vector2<f64>
+}
+
+impl Component for Position {
+    type Storage = VecStorage<Self>;
+}
+
+struct Velocity {
+    velocity: na::Vector2<f64>
+}
+
+impl Component for Velocity {
+    type Storage = VecStorage<Self>;
+}
+// End Components
+
 struct Resources {
     bullet: graphics::Image
 }
 
+struct MainStateNew<'a, 'b> {
+    world: World,
+    dispatcher: Dispatcher<'a, 'b>
+
+}
 struct MainState {
     player: Player,
     screen_width: u32,
@@ -128,7 +153,7 @@ impl MainState {
 }
 
 impl EventHandler for MainState {
-    fn update(&mut self, ctx: &mut Context, dt: Duration) -> GameResult<()> {
+    fn update(&mut self, _: &mut Context, dt: Duration) -> GameResult<()> {
         let one_nano: f64 = 1_000_000_000.0;
         let nanos: f64 = dt.as_secs() as f64 + (dt.subsec_nanos() as f64 / one_nano);
 
@@ -172,12 +197,12 @@ impl EventHandler for MainState {
         Ok(())
     }
 
-    fn key_down_event(&mut self, keycode: Keycode, keymod: Mod, repeat: bool) {
+    fn key_down_event(&mut self, keycode: Keycode, _: Mod, repeat: bool) {
         if !repeat {
             self.active_keys.insert(keycode);
         }
     }
-    fn key_up_event(&mut self, keycode: Keycode, keymod: Mod, repeat: bool) {
+    fn key_up_event(&mut self, keycode: Keycode, _: Mod, repeat: bool) {
         if !repeat {
             self.active_keys.remove(&keycode);
         }
@@ -205,7 +230,7 @@ impl EventHandler for MainState {
         let player_point = graphics::Point::new(self.player.position[0] as f32, self.player.position[1] as f32);
         graphics::set_color(ctx, graphics::Color::new(1.0, 1.0, 1.0, 1.0))?;
         graphics::draw(ctx, &self.player.image, player_point, self.player.angle.angle() as f32)?;
-        graphics::rectangle(ctx, graphics::DrawMode::Fill, rect);
+        graphics::rectangle(ctx, graphics::DrawMode::Fill, rect)?;
 
         for actor in &self.actors {
             let bullet_point = graphics::Point::new(actor.position[0] as f32, actor.position[1] as f32);
